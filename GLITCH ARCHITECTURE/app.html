@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SAP Severe-Weather Incident Console · Glitch Architecture</title>
+<meta name="description" content="SAP Horizon-themed severe-weather nowcasting and disaster-response operations console.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@300;400;600;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet" href="assets/css/base.css">
+<link rel="stylesheet" href="assets/css/console.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='26' font-size='26'>⛈</text></svg>">
+<style>
+  /* Leaflet chrome tuned to SAP Horizon palette */
+  .leaflet-container { background: var(--slate-900); font-family: var(--font-body); }
+  .leaflet-control-zoom a { background: var(--slate-700); color: var(--ink); border-color: var(--glass-border); }
+  .leaflet-control-zoom a:hover { background: var(--glass-bg-hover); }
+  .leaflet-control-attribution { background: var(--glass-head) !important; color: var(--ink-mute) !important; font-size: 10px; }
+  .leaflet-control-attribution a { color: var(--trace) !important; }
+  .leaflet-popup-content-wrapper, .leaflet-popup-tip { background: var(--slate-700); color: var(--ink); border: 1px solid var(--glass-border); backdrop-filter: var(--glass-blur); }
+  .leaflet-popup-content { font-size: .85rem; margin: .6rem .8rem; }
+  .ga-pin { background: none; border: none; }
+  .boot { display: grid; place-items: center; height: 100vh; color: var(--ink-mute); font-family: var(--font-head); letter-spacing: .1em; }
+</style>
+</head>
+<body>
+<div class="boot">Loading console…</div>
+
+<!-- Leaflet is optional. If the CDN is unreachable the app falls back to a
+     built-in canvas grid view, so the console still works offline. -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+<script src="assets/js/core.js"></script>
+<script src="assets/js/state.js"></script>
+<script src="assets/js/map.js"></script>
+<script src="assets/js/views.js"></script>
+<script src="assets/js/assistant.js"></script>
+<script src="assets/js/app.js"></script>
+<script>
+  window.addEventListener('error', function (e) {
+    console.error('Console error:', e.message, e.filename, e.lineno);
+  });
+  try { GAApp.boot(); }
+  catch (err) {
+    document.body.innerHTML = '<div class="boot" style="text-align:center;padding:2rem">' +
+      'The console failed to start.<br><span style="font-family:var(--font-read);font-size:.8rem;color:var(--sev-mod)">' +
+      String(err.message || err) + '</span><br><br>' +
+      '<a class="btn" href="index.html" style="letter-spacing:0">Back to the landing page</a></div>';
+    console.error(err);
+  }
+</script>
+</body>
+</html>

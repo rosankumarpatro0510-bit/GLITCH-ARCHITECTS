@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Glitch Architecture — severe-weather nowcasting and response console</title>
+<meta name="description" content="A hyper-local nowcasting and disaster-response console for thunderstorms, cloudbursts and flash floods. Built for Smart India Hackathon as a decision-support prototype.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@300;400;600;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/css/base.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='26' font-size='26'>⛈</text></svg>">
+</head>
+<body class="is-landing">
+
+<header class="masthead">
+  <div class="wrap" style="display:flex;align-items:center;justify-content:space-between;gap:1.5rem">
+    <a class="brand" href="index.html">
+      <svg class="brand__mark" viewBox="0 0 32 32" fill="none" stroke="#4FC3D9" stroke-width="1.8" stroke-linecap="round">
+        <path d="M4 20a6 6 0 0 1 1.5-11.8A9 9 0 0 1 23 10.5 5.5 5.5 0 0 1 26 20"/>
+        <path d="M16 17l-3 6h4l-2.5 6"/>
+      </svg>
+      <span class="brand__name">Glitch Architecture
+        <span class="brand__sub">severe-weather nowcasting console</span></span>
+    </a>
+    <nav>
+      <a href="#problem">The problem</a>
+      <a href="#platform">What it does</a>
+      <a href="#honesty">Limits</a>
+      <a class="btn btn--solid" href="app.html">Open the console</a>
+    </nav>
+  </div>
+</header>
+
+<section class="hero">
+  <div class="wrap hero__grid">
+    <div>
+      <div class="hero__kicker"><span class="pulse"></span> Nowcast window 0–6 hours · hyper-local · global coverage</div>
+      <h1>Severe weather arrives<span class="thin">faster than a forecast cycle.</span></h1>
+      <p class="hero__lede">A thunderstorm cell can go from clear sky to a hundred millimetres of rain in under ninety minutes. Glitch Architecture watches that window — scoring thunderstorm, cloudburst and flash-flood risk cell by cell, showing which people and infrastructure sit underneath it, and explaining in plain language why the number moved.</p>
+      <div class="hero__actions">
+        <a class="btn btn--solid" href="app.html">Open the console</a>
+        <a class="btn btn--ghost" href="#platform">See the modules</a>
+      </div>
+    </div>
+
+    <!-- Hero: a vertical atmospheric cross-section, the thing this system actually watches -->
+    <figure class="scope" style="margin:0">
+      <figcaption class="scope__head"><span>vertical cross-section · demonstration model</span><span id="scopeClock">--:--</span></figcaption>
+      <svg viewBox="0 0 560 320" role="img" aria-label="Cross-section of a growing convective cell over terrain, with risk indicators">
+        <defs>
+          <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#16202B"/><stop offset="100%" stop-color="#1D2A36"/>
+          </linearGradient>
+          <linearGradient id="cell" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#4FC3D9" stop-opacity=".55"/>
+            <stop offset="55%" stop-color="#E0A33E" stop-opacity=".30"/>
+            <stop offset="100%" stop-color="#D2423F" stop-opacity=".22"/>
+          </linearGradient>
+          <clipPath id="clipbox"><rect x="46" y="10" width="500" height="238"/></clipPath>
+        </defs>
+
+        <rect x="46" y="10" width="500" height="238" fill="url(#sky)"/>
+
+        <!-- altitude grid -->
+        <g class="grat">
+          <line x1="46" y1="58" x2="546" y2="58"/><line x1="46" y1="106" x2="546" y2="106"/>
+          <line x1="46" y1="154" x2="546" y2="154"/><line x1="46" y1="202" x2="546" y2="202"/>
+        </g>
+        <g font-family="IBM Plex Mono, monospace" font-size="9" fill="#7E95A5">
+          <text x="8" y="22">14 km</text><text x="8" y="62">10 km</text>
+          <text x="8" y="110">7 km</text><text x="8" y="158">4 km</text>
+          <text x="8" y="206">1 km</text>
+        </g>
+
+        <g clip-path="url(#clipbox)">
+          <!-- convective cell, anvil spreading downwind -->
+          <path d="M250 246 C 236 190, 240 150, 256 118 C 232 96, 244 62, 276 56 C 300 30, 372 34, 388 58 C 430 56, 452 74, 444 96 C 470 104, 470 126, 442 130 L 330 130 C 344 168, 336 206, 322 246 Z"
+                fill="url(#cell)" stroke="#4FC3D9" stroke-opacity=".35" stroke-width="1"/>
+          <!-- updraught -->
+          <path d="M286 244 C 282 200, 284 160, 292 120 C 296 96, 308 74, 322 60" fill="none"
+                stroke="#4FC3D9" stroke-width="1.5" stroke-dasharray="4 5" opacity=".8"/>
+          <!-- rain shaft -->
+          <g stroke="#6FA8DC" stroke-width="1.1" opacity=".55">
+            <line x1="264" y1="182" x2="258" y2="244"/><line x1="278" y1="176" x2="272" y2="244"/>
+            <line x1="292" y1="186" x2="286" y2="244"/><line x1="306" y1="178" x2="300" y2="244"/>
+            <line x1="320" y1="190" x2="314" y2="244"/>
+          </g>
+          <!-- terrain profile -->
+          <path d="M46 248 L 110 244 L 150 230 L 196 236 L 250 210 L 300 178 L 340 206 L 392 232 L 450 240 L 546 246 L 546 260 L 46 260 Z"
+                fill="#22303D" stroke="#33495C" stroke-width="1"/>
+          <!-- valley marker where runoff concentrates -->
+          <circle cx="392" cy="232" r="4.5" fill="none" stroke="#35B0A7" stroke-width="1.5"/>
+          <text x="400" y="228" font-family="IBM Plex Mono, monospace" font-size="9" fill="#35B0A7">runoff concentrates</text>
+          <!-- risk trace across the section -->
+          <path id="riskTrace" d="M46 236 L 120 232 L 180 224 L 236 196 L 290 148 L 330 158 L 384 186 L 440 214 L 546 228"
+                fill="none" stroke="#D2423F" stroke-width="2"/>
+        </g>
+
+        <!-- readouts -->
+        <g font-family="IBM Plex Mono, monospace" font-size="10">
+          <text x="60" y="30" fill="#4FC3D9">CTT −71 °C ▼ 6.2 K/30min</text>
+          <text x="60" y="46" fill="#B4C6D2">CAPE 2740 J/kg · CIN 18 J/kg</text>
+          <text x="60" y="62" fill="#B4C6D2">IWV 61 mm ▲ 4.1 mm/3h</text>
+        </g>
+        <g font-family="IBM Plex Sans, sans-serif" font-size="11">
+          <text x="46" y="276" fill="#7E95A5">horizontal extent ≈ 48 km</text>
+          <text x="546" y="276" fill="#D2423F" text-anchor="end">modelled risk trace</text>
+        </g>
+        <g font-family="IBM Plex Mono, monospace" font-size="9" fill="#7E95A5">
+          <text x="46" y="296">windward</text>
+          <text x="546" y="296" text-anchor="end">lee / catchment</text>
+        </g>
+      </svg>
+      <div class="scope__foot">
+        <span><i style="background:#4FC3D9"></i>updraught</span>
+        <span><i style="background:#6FA8DC"></i>rain shaft</span>
+        <span><i style="background:#D2423F"></i>risk trace</span>
+        <span><i style="background:#35B0A7"></i>flood concentration</span>
+      </div>
+    </figure>
+  </div>
+</section>
+
+<section class="section" id="problem">
+  <div class="wrap">
+    <div class="section__head">
+      <h2>Why the 0–6 hour window is the hard one</h2>
+      <p>Daily forecasts handle tomorrow well. What they handle badly is the convective cell that forms over one catchment this afternoon, dumps its rain in forty minutes, and floods a specific set of streets. That is where the deaths happen, and where the warning has to be local, fast, and explainable enough that someone will act on it.</p>
+    </div>
+    <div class="problem-grid">
+      <div>
+        <span class="figure">40 min</span>
+        <h4>From growth to ground</h4>
+        <p>A cumulonimbus can go from first cooling cloud tops to peak rainfall in well under an hour. Anything slower than a nowcast misses it.</p>
+      </div>
+      <div>
+        <span class="figure">2 km</span>
+        <h4>The scale that matters</h4>
+        <p>Cloudbursts and urban flash floods concentrate at a scale far below a district bulletin. One ward floods while the next stays dry.</p>
+      </div>
+      <div>
+        <span class="figure">Uneven</span>
+        <h4>Data is not evenly good</h4>
+        <p>Radar coverage, rain gauges and OpenStreetMap infrastructure are all patchy — especially rurally. A system that hides that is lying to its user.</p>
+      </div>
+      <div>
+        <span class="figure">Why?</span>
+        <h4>Numbers alone don't move people</h4>
+        <p>A control-room officer acts on a score they can interrogate. Every prediction here opens up into the indicators that produced it.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section" id="platform">
+  <div class="wrap">
+    <div class="section__head">
+      <h2>One console, ten modules</h2>
+      <p>Pick any point on Earth by search, coordinates or a click on the map. Every module re-centres on it at once.</p>
+    </div>
+    <div class="modules">
+      <div class="module"><span class="module__icon">⛈</span><h4>Situation overview</h4><p>Overall, thunderstorm, cloudburst and flash-flood scores with the atmospheric indicators behind them, the prediction window, confidence and feed status.</p></div>
+      <div class="module"><span class="module__icon">🗺</span><h4>Risk map</h4><p>Global pan and zoom down to a 2 km risk lattice, with toggleable hazard, rainfall, terrain, infrastructure and citizen-report layers.</p></div>
+      <div class="module"><span class="module__icon">📈</span><h4>Prediction</h4><p>Hour-by-hour risk evolution to six hours, per-hazard outlooks, cell motion and a per-step confidence figure. No accuracy claim is made.</p></div>
+      <div class="module"><span class="module__icon">🏥</span><h4>Impact analysis</h4><p>Residents, roads, schools, hospitals, bridges, substations and emergency facilities inside the footprint — with data gaps stated plainly.</p></div>
+      <div class="module"><span class="module__icon">🛣</span><h4>Safe route intelligence</h4><p>Compare corridors by hazard exposure, see which segments cross high-risk cells, and read why. Routes are ranked, never certified safe.</p></div>
+      <div class="module"><span class="module__icon">🧪</span><h4>What-if simulator</h4><p>Push rainfall, storm intensity, moisture, saturation or zone extent and watch risk, exposure, routing and alerts respond — all marked as simulation.</p></div>
+      <div class="module"><span class="module__icon">📣</span><h4>Citizen reports</h4><p>Public observations of flooding, hail, blocked roads and damage, with moderation states from unverified through corroborated.</p></div>
+      <div class="module"><span class="module__icon">🚨</span><h4>Alert centre</h4><p>Categorised alerts with area, window, severity, reason and a preparedness action — each labelled demo or simulated, never official.</p></div>
+      <div class="module"><span class="module__icon">🧠</span><h4>Why this risk</h4><p>Signed per-feature contributions for every score, plus a plain-language reading of which indicators pushed it up and which held it down.</p></div>
+      <div class="module"><span class="module__icon">🎙</span><h4>Assistant and voice</h4><p>Ask about risk, indicators, routes or what to do, by typing or speaking. Five languages, with honest fallback where a voice is not installed.</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="section" id="honesty">
+  <div class="wrap">
+    <div class="section__head">
+      <h2>What this build does not do</h2>
+      <p>A disaster tool that overstates itself is worse than no tool. So this is stated up front, and repeated inside every module it applies to.</p>
+    </div>
+    <div class="honesty">
+      <h4>Read this before you trust a number on screen</h4>
+      <p>This is a demonstration prototype built for Smart India Hackathon. The risk engine is a deterministic, physically-motivated model — not a system trained on observations, and not connected to a live feed.</p>
+      <ul>
+        <li>No live satellite, radar, rain-gauge or NWP data is ingested. The adapter interfaces are specified and documented; the endpoints are not connected.</li>
+        <li>No accuracy, skill score or lead-time figure is claimed anywhere, because no verification run has been performed.</li>
+        <li>Alerts are generated from demonstration thresholds and are labelled as such. None of them is a government warning.</li>
+        <li>Routes are compared by modelled exposure. A lower-exposure route is described as comparatively lower risk — never as safe.</li>
+        <li>Exposure counts depend on the geospatial data available, which is uneven. Absence from a list is not absence on the ground.</li>
+        <li>Citizen reports are public observations and are never promoted into the model as measurements.</li>
+      </ul>
+      <p style="margin-top:.8rem">For official severe-weather warnings in India, follow the India Meteorological Department, the National Disaster Management Authority and your State Disaster Management Authority. Emergency number 112. NDMA helpline 1078.</p>
+    </div>
+  </div>
+</section>
+
+<section class="section" style="border-bottom:none">
+  <div class="wrap">
+    <div class="entry">
+      <div>
+        <h2>Start anywhere on Earth</h2>
+        <p>Search a place, paste a coordinate pair, or click the map. The console opens on Kolkata by default and follows you from there.</p>
+      </div>
+      <a class="btn btn--solid" href="app.html" style="padding:.85rem 1.6rem;font-size:1.05rem">Open the console</a>
+    </div>
+  </div>
+</section>
+
+<footer class="foot">
+  <div class="wrap" style="display:flex;flex-wrap:wrap;gap:1rem;justify-content:space-between">
+    <span>Glitch Architecture · Smart India Hackathon prototype · decision support, not a warning authority</span>
+    <span>Place search by OpenStreetMap Nominatim · basemap by CARTO / OSM</span>
+  </div>
+</footer>
+
+<script>
+  // One orchestrated moment: the risk trace draws itself in on load, then stops.
+  (function () {
+    var p = document.getElementById('riskTrace');
+    if (p && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      var len = p.getTotalLength();
+      p.style.strokeDasharray = len; p.style.strokeDashoffset = len;
+      p.animate([{ strokeDashoffset: len }, { strokeDashoffset: 0 }],
+        { duration: 1400, delay: 260, easing: 'cubic-bezier(.4,0,.2,1)', fill: 'forwards' });
+    }
+    function clock() {
+      var d = new Date();
+      document.getElementById('scopeClock').textContent =
+        d.toTimeString().slice(0, 5) + ' local';
+    }
+    clock(); setInterval(clock, 30000);
+  })();
+</script>
+</body>
+</html>
