@@ -9,6 +9,7 @@
 
   let liveMaps = [];
   function killMaps() { liveMaps.forEach(m => { try { m.destroy(); } catch (e) {} }); liveMaps = []; }
+  function rethemeMaps() { liveMaps.forEach(m => { try { if (m.retheme) m.retheme(); } catch (e) {} }); }
 
   /* ------------------------------------------------------------- helpers */
   function gauge(score, b) {
@@ -29,6 +30,7 @@
 
   function chipProvenance(kind) {
     if (kind === 'sim') return `<span class="chip chip--sim"><i class="dot"></i>Simulated scenario</span>`;
+    if (kind === 'mixed') return `<span class="chip chip--live"><i class="dot"></i>Live model fields + synthetic</span>`;
     if (kind === 'live') return `<span class="chip chip--live"><i class="dot"></i>Live data-backed</span>`;
     return `<span class="chip chip--demo"><i class="dot"></i>Demo alert</span>`;
   }
@@ -98,7 +100,7 @@
             ${atm.terrain.range ? ' · ' + U.esc(atm.terrain.range) + ' terrain' : ''} · elevation ≈ ${U.fmt(atm.terrain.elevation)} m</p>
           </div>
           <div class="spacer"></div>
-          <div>${chipProvenance(a.simulated ? 'sim' : 'demo')}</div>
+          <div>${chipProvenance(a.simulated ? 'sim' : (a.atm.liveFields && a.atm.liveFields.length ? 'mixed' : 'demo'))}</div>
         </div>
 
         <div class="grid g-2" style="margin-bottom:1rem">
@@ -176,7 +178,7 @@
         </div>
 
         <div style="margin-top:1rem">
-          ${note('<b>These values come from a demonstration model.</b> No live satellite, radar or gauge feed is connected in this build. The adapter interfaces for INSAT-3DR, IMD DWR, AWS gauges and GPM IMERG exist in the data layer and are documented in <span class="mono">docs/ARCHITECTURE.md</span>, but they are not wired to a live endpoint here.', 'warn', 'warn')}
+          ${a.atm.liveFields && a.atm.liveFields.length ? note('<b>Partly live.</b> CAPE, CIN, 850 hPa humidity, rainfall, soil moisture and shear are Open-Meteo model output on a ~25 km grid, interpolated to this point. It is model output, not an observation, and not hyper-local. The remaining indicators and all risk weightings are still the demonstration model, which was tuned on synthetic data and has not been recalibrated for real inputs.', '', 'info') + '<div style="height:.6rem"></div>' : ''}${note('<b>These values come from a demonstration model.</b> No live satellite, radar or gauge feed is connected in this build. The adapter interfaces for INSAT-3DR, IMD DWR, AWS gauges and GPM IMERG exist in the data layer and are documented in <span class="mono">docs/ARCHITECTURE.md</span>, but they are not wired to a live endpoint here.', 'warn', 'warn')}
         </div>
       </div>`;
     },
@@ -1459,5 +1461,5 @@
     }
   };
 
-  global.GAViews = { dashboard, riskmap, prediction, impact, routes, whatif, reports, alerts, explain, about, signin, killMaps, LAYER_DEFS };
+  global.GAViews = { dashboard, riskmap, prediction, impact, routes, whatif, reports, alerts, explain, about, signin, killMaps, rethemeMaps, LAYER_DEFS };
 })(window);

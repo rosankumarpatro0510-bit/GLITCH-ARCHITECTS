@@ -15,6 +15,18 @@
 
   const HAS_LEAFLET = () => typeof global.L !== 'undefined' && global.L.map;
 
+  /* ---- basemap config ----------------------------------------------------
+     CARTO now stamps an "API KEY REQUIRED" watermark on keyless tiles. A free
+     key (5M tiles/month, non-commercial intent, attribution required) is
+     requested at https://carto.com/basemaps/apikey . Paste it below.
+     Leave empty to keep requesting keyless tiles (they will be watermarked). */
+  const CARTO_KEY = '';
+
+  const isLight = () => document.documentElement.getAttribute('data-sap-theme') === 'morning';
+  const cssVar = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+  // Canvas cannot parse "var(--x)". Resolve it, otherwise the fill is silently ignored.
+  const resolveColour = c => (typeof c === 'string' && c.indexOf('var(') === 0) ? (cssVar(c.slice(4, -1).trim()) || '#888') : c;
+
   /* =================================================== Leaflet backend === */
   function leafletBackend(el, opts) {
     const map = L.map(el, {
@@ -24,10 +36,18 @@
       worldCopyJump: true,
       attributionControl: true
     });
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-      attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
-      subdomains: 'abcd', maxZoom: 19
-    }).addTo(map);
+    let tiles = null;
+    function setTiles() {
+      if (tiles) map.removeLayer(tiles);
+      const style = isLight() ? 'light_all' : 'dark_all';
+      const key = CARTO_KEY ? '?key=' + encodeURIComponent(CARTO_KEY) : '';
+      tiles = L.tileLayer('https://{s}.basemaps.cartocdn.com/' + style + '/{z}/{x}/{y}{r}.png' + key, {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+        subdomains: 'abcd', maxZoom: 19
+      }).addTo(map);
+      tiles.bringToBack();
+    }
+    setTiles();
 
     const groups = {};
     const ensure = k => (groups[k] = groups[k] || L.layerGroup().addTo(map));
@@ -35,6 +55,7 @@
     return {
       kind: 'leaflet',
       raw: map,
+      retheme: setTiles,
       setView(lat, lon, z) { map.setView([lat, lon], z || map.getZoom()); },
       getCenter() { const c = map.getCenter(); return { lat: c.lat, lon: c.lng }; },
       getZoom() { return map.getZoom(); },
@@ -66,7 +87,7 @@
         }).addTo(ensure(k));
       },
       marker(k, lat, lon, o) {
-        const html = `<div style="width:${o.size || 14}px;height:${o.size || 14}px;border-radius:${o.square ? '3px' : '50%'};background:${o.colour};border:2px solid ${o.ring || '#101A23'};box-shadow:0 0 0 1px ${o.colour}77"></div>`;
+        const html = `<div style="width:${o.size || 14}px;height:${o.size || 14}px;border-radius:${o.square ? '3px' : '50%'};background:${o.colour};border:2px solid ${o.ring || 'var(--slate-900)'};box-shadow:0 0 0 1px ${o.colour}77"></div>`;
         const m = L.marker([lat, lon], {
           icon: L.divIcon({ html, className: 'ga-pin', iconSize: [o.size || 14, o.size || 14] })
         }).addTo(ensure(k));
@@ -135,8 +156,8 @@
       ctx.lineWidth = 1;
       ctx.font = '10px "IBM Plex Mono", monospace';
       const tl = unproject(0, 0), br = unproject(W, H);
-      ctx.strokeStyle = 'rgba(79,195,217,.10)';
-      ctx.fillStyle = 'rgba(126,149,165,.75)';
+      ctx.strokeStyle = isLight() ? 'rgba(0,112,242,.14)' : 'rgba(79,195,217,.10)';
+      ctx.fillStyle = isLight() ? 'rgba(71,85,105,.85)' : 'rgba(126,149,165,.75)';
       for (let lon = Math.ceil(tl.lon / step) * step; lon < br.lon; lon += step) {
         const p = project(0, lon);
         ctx.beginPath(); ctx.moveTo(p.x, 0); ctx.lineTo(p.x, H); ctx.stroke();
@@ -157,7 +178,9 @@
           const g = unproject(x + step / 2, y + step / 2);
           const t = global.GA.terrainAt(g.lat, g.lon);
           const v = U.clamp(t.elevation / 4200, 0, 1);
-          ctx.fillStyle = `rgba(${40 + v * 70},${58 + v * 62},${72 + v * 52},.55)`;
+          ctx.fillStyle = isLight()
+            ? `rgba(${214 - v * 70},${222 - v * 62},${232 - v * 50},.7)`
+            : `rgba(${40 + v * 70},${58 + v * 62},${72 + v * 52},.55)`;
           ctx.fillRect(x, y, step, step);
         }
       }
@@ -168,15 +191,15 @@
       global.GA.GAZETTEER.forEach(g => {
         const p = project(g.lat, g.lon);
         if (p.x < -40 || p.x > W + 40 || p.y < -20 || p.y > H + 20) return;
-        ctx.fillStyle = 'rgba(180,198,210,.55)';
+        ctx.fillStyle = isLight() ? 'rgba(71,85,105,.7)' : 'rgba(180,198,210,.55)';
         ctx.beginPath(); ctx.arc(p.x, p.y, 2, 0, 7); ctx.fill();
-        if (view.zoom > 5) { ctx.fillStyle = 'rgba(180,198,210,.7)'; ctx.fillText(g.name, p.x + 5, p.y + 3); }
+        if (view.zoom > 5) { ctx.fillStyle = isLight() ? 'rgba(51,65,85,.9)' : 'rgba(180,198,210,.7)'; ctx.fillText(g.name, p.x + 5, p.y + 3); }
       });
     }
 
     function draw() {
       ctx.clearRect(0, 0, W, H);
-      ctx.fillStyle = '#101A23'; ctx.fillRect(0, 0, W, H);
+      ctx.fillStyle = cssVar('--slate-800') || '#101A23'; ctx.fillRect(0, 0, W, H);
       drawTerrainShade();
       drawGraticule();
       drawGazetteer();
@@ -188,7 +211,7 @@
           if (it.t === 'cell') {
             const a = project(it.lat + it.dLat, it.lon - it.dLon);
             const b = project(it.lat - it.dLat, it.lon + it.dLon);
-            ctx.globalAlpha = it.alpha; ctx.fillStyle = it.colour;
+            ctx.globalAlpha = it.alpha; ctx.fillStyle = resolveColour(it.colour);
             ctx.fillRect(a.x, a.y, b.x - a.x, b.y - a.y);
             ctx.globalAlpha = 1;
           } else if (it.t === 'circle') {
@@ -196,19 +219,19 @@
             const edge = project(it.lat, it.lon + it.radiusKm / (111 * Math.cos(it.lat * Math.PI / 180) || 1));
             const r = Math.abs(edge.x - c.x);
             ctx.beginPath(); ctx.arc(c.x, c.y, r, 0, 7);
-            ctx.fillStyle = it.colour; ctx.globalAlpha = it.fill; ctx.fill(); ctx.globalAlpha = 1;
-            ctx.strokeStyle = it.colour; ctx.lineWidth = it.weight;
+            ctx.fillStyle = resolveColour(it.colour); ctx.globalAlpha = it.fill; ctx.fill(); ctx.globalAlpha = 1;
+            ctx.strokeStyle = resolveColour(it.colour); ctx.lineWidth = it.weight;
             if (it.dash) ctx.setLineDash([5, 4]);
             ctx.stroke(); ctx.setLineDash([]);
           } else if (it.t === 'marker') {
             const p = project(it.lat, it.lon);
             ctx.beginPath(); ctx.arc(p.x, p.y, (it.size || 12) / 2, 0, 7);
-            ctx.fillStyle = it.colour; ctx.fill();
-            ctx.lineWidth = 2; ctx.strokeStyle = '#101A23'; ctx.stroke();
+            ctx.fillStyle = resolveColour(it.colour); ctx.fill();
+            ctx.lineWidth = 2; ctx.strokeStyle = cssVar('--slate-900') || '#101A23'; ctx.stroke();
           } else if (it.t === 'line') {
             ctx.beginPath();
             it.pts.forEach((p, i) => { const q = project(p.lat, p.lon); i ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y); });
-            ctx.strokeStyle = it.colour; ctx.lineWidth = it.weight; ctx.globalAlpha = it.opacity;
+            ctx.strokeStyle = resolveColour(it.colour); ctx.lineWidth = it.weight; ctx.globalAlpha = it.opacity;
             if (it.dash) ctx.setLineDash([8, 6]);
             ctx.stroke(); ctx.setLineDash([]); ctx.globalAlpha = 1;
           }
@@ -254,6 +277,7 @@
     return {
       kind: 'canvas',
       raw: null,
+      retheme() { draw(); },
       setView(lat, lon, z) { view.lat = lat; view.lon = lon; if (z) view.zoom = z; draw(); },
       getCenter() { return { lat: view.lat, lon: view.lon }; },
       getZoom() { return Math.round(view.zoom); },

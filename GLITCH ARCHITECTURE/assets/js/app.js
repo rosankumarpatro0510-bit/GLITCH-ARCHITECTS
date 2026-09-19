@@ -48,7 +48,7 @@
           }).join('')}`).join('')}
       </nav>
       <div class="rail__foot">
-        <span>SAP Demonstration</span>
+        <span>Demonstration build<br><small style="opacity:.75">Model data: <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo.com</a> (CC BY 4.0)</small></span>
         <a href="#/signin" style="color:var(--sap-brand);font-size:.72rem;font-weight:600">Access Portal</a>
       </div>
     </aside>
@@ -219,8 +219,19 @@
     document.addEventListener('click', e => { if (!e.target.closest('.searchbox')) close(); });
   }
 
+  // Prefetch live model fields for a point. The engine keeps answering from the
+  // synthetic field immediately; when real data lands we recompute and redraw once.
+  function refreshLive(lat, lon) {
+    if (!GA.live) return;
+    GA.live.ensure(lat, lon).then(changed => {
+      if (changed) { St.recompute(); render(); toast('Live model fields loaded (Open-Meteo).'); }
+      else if (!GA.live.hasData(lat, lon) && GA.live.status().error) toast('Live model data unavailable. Showing the synthetic engine.', 'warn');
+    });
+  }
+
   function pick(p) {
     St.setLocation(p);
+    refreshLive(p.lat, p.lon);
     S.routes = null; S.routeQuery = null;
     toast(`Assessment point moved to ${p.name}. All modules updated.`);
     render();
@@ -424,6 +435,7 @@
       themeBtn.addEventListener('click', () => {
         const next = S.theme === 'morning' ? 'evening' : 'morning';
         St.setTheme(next);
+        if (V.rethemeMaps) V.rethemeMaps();
         toast(`Theme set to ${next === 'morning' ? 'SAP Morning Horizon (Light)' : 'SAP Evening Horizon (Dark)'}`);
         updateUserBar();
       });
@@ -485,6 +497,7 @@
     initAssistant();
     initUserAndTheme();
     render();
+    refreshLive(S.location.lat, S.location.lon);
 
     global.addEventListener('hashchange', render);
     document.getElementById('railToggle').addEventListener('click', () => document.body.classList.toggle('rail-open'));
