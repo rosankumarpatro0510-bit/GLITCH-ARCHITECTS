@@ -122,7 +122,7 @@
 
   /* ------------------------------------------------------------ routing */
   function currentRoute() {
-    const h = location.hash || (S.user ? '#/dashboard' : '#/signin');
+    const h = location.hash || '#/dashboard';
     return ROUTES.find(r => r.hash === h) || ROUTES[0];
   }
 
