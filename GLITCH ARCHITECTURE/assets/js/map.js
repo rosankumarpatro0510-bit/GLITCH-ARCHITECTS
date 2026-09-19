@@ -15,13 +15,6 @@
 
   const HAS_LEAFLET = () => typeof global.L !== 'undefined' && global.L.map;
 
-  /* ---- basemap config ----------------------------------------------------
-     CARTO now stamps an "API KEY REQUIRED" watermark on keyless tiles. A free
-     key (5M tiles/month, non-commercial intent, attribution required) is
-     requested at https://carto.com/basemaps/apikey . Paste it below.
-     Leave empty to keep requesting keyless tiles (they will be watermarked). */
-  const CARTO_KEY = '';
-
   const isLight = () => document.documentElement.getAttribute('data-sap-theme') === 'morning';
   const cssVar = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
   // Canvas cannot parse "var(--x)". Resolve it, otherwise the fill is silently ignored.
@@ -39,11 +32,9 @@
     let tiles = null;
     function setTiles() {
       if (tiles) map.removeLayer(tiles);
-      const style = isLight() ? 'light_all' : 'dark_all';
-      const key = CARTO_KEY ? '?key=' + encodeURIComponent(CARTO_KEY) : '';
-      tiles = L.tileLayer('https://{s}.basemaps.cartocdn.com/' + style + '/{z}/{x}/{y}{r}.png' + key, {
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
-        subdomains: 'abcd', maxZoom: 19
+      tiles = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors',
+        subdomains: 'abc', maxZoom: 19
       }).addTo(map);
       tiles.bringToBack();
     }

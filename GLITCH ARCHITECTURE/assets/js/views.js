@@ -307,11 +307,11 @@
           ? on.map(l => `<div><i style="background:${l.colour}"></i>${U.esc(l.label)}</div>`).join('') +
             `<div style="margin-top:.35rem;border-top:1px solid var(--line);padding-top:.3rem">Opacity tracks score</div>`
           : '<div>No layers selected</div>';
-        hud.textContent = `z${m.getZoom()} · ${m.kind === 'leaflet' ? 'OSM tiles' : 'offline grid'}`;
+        hud.textContent = `z${m.getZoom()} · ${m.kind === 'leaflet' ? 'OpenStreetMap tiles' : 'offline grid'}`;
       }
 
       redraw();
-      m.onMove(() => { hud.textContent = `z${m.getZoom()} · ${m.kind === 'leaflet' ? 'OSM tiles' : 'offline grid'}`; });
+      m.onMove(() => { hud.textContent = `z${m.getZoom()} · ${m.kind === 'leaflet' ? 'OpenStreetMap tiles' : 'offline grid'}`; });
       m.onClick((lat, lon) => {
         const a = GA.assess(lat, lon, 0, S.scenario ? { scenario: S.scenario } : {});
         document.getElementById('cellInfo').innerHTML = `

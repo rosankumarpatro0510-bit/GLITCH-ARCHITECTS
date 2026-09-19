@@ -298,6 +298,26 @@
     }
   }
 
+  async function answerWithApi(q) {
+    const response = await fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      body: JSON.stringify({
+        query: q,
+        lang: S.lang,
+        context: {
+          location: S.location,
+          assessment: S.assessment,
+          horizon: S.horizon,
+          scenario: S.scenario || null
+        }
+      })
+    });
+    const payload = await response.json();
+    if (!response.ok || !payload.success) throw new Error(payload.error || 'Assistant API request failed');
+    return payload.answer;
+  }
+
   function currentValueFor(term, a) {
     const m = {
       cape: a.atm.cape + ' J/kg', cin: a.atm.cin + ' J/kg', iwv: a.atm.iwv + ' mm',
@@ -378,7 +398,7 @@
   function stopListening() { if (recog && listening) { try { recog.stop(); } catch (e) {} } }
 
   global.GAAssistant = {
-    answer, speakable, LANGS, T, t, langMeta,
+    answer, answerWithApi, speakable, LANGS, T, t, langMeta,
     voiceSupport, speak, startListening, stopListening,
     isListening: () => listening,
     hasASR: () => !!SR, hasTTS: () => !!synth
