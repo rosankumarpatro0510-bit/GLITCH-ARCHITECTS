@@ -9,6 +9,7 @@
 
   let liveMaps = [];
   function killMaps() { liveMaps.forEach(m => { try { m.destroy(); } catch (e) {} }); liveMaps = []; }
+  function rethemeMaps() { liveMaps.forEach(m => { try { if (m.retheme) m.retheme(); } catch (e) {} }); }
 
   /* ------------------------------------------------------------- helpers */
   function gauge(score, b) {
@@ -29,6 +30,7 @@
 
   function chipProvenance(kind) {
     if (kind === 'sim') return `<span class="chip chip--sim"><i class="dot"></i>Simulated scenario</span>`;
+    if (kind === 'mixed') return `<span class="chip chip--live"><i class="dot"></i>Live model fields + synthetic</span>`;
     if (kind === 'live') return `<span class="chip chip--live"><i class="dot"></i>Live data-backed</span>`;
     return `<span class="chip chip--demo"><i class="dot"></i>Demo alert</span>`;
   }
@@ -98,7 +100,7 @@
             ${atm.terrain.range ? ' · ' + U.esc(atm.terrain.range) + ' terrain' : ''} · elevation ≈ ${U.fmt(atm.terrain.elevation)} m</p>
           </div>
           <div class="spacer"></div>
-          <div>${chipProvenance(a.simulated ? 'sim' : 'demo')}</div>
+          <div>${chipProvenance(a.simulated ? 'sim' : (a.atm.liveFields && a.atm.liveFields.length ? 'mixed' : 'demo'))}</div>
         </div>
 
         <div class="grid g-2" style="margin-bottom:1rem">
@@ -176,7 +178,7 @@
         </div>
 
         <div style="margin-top:1rem">
-          ${note('<b>These values come from a demonstration model.</b> No live satellite, radar or gauge feed is connected in this build. The adapter interfaces for INSAT-3DR, IMD DWR, AWS gauges and GPM IMERG exist in the data layer and are documented in <span class="mono">docs/ARCHITECTURE.md</span>, but they are not wired to a live endpoint here.', 'warn', 'warn')}
+          ${a.atm.liveFields && a.atm.liveFields.length ? note('<b>Partly live.</b> CAPE, CIN, 850 hPa humidity, rainfall, soil moisture and shear are Open-Meteo model output on a ~25 km grid, interpolated to this point. It is model output, not an observation, and not hyper-local. The remaining indicators and all risk weightings are still the demonstration model, which was tuned on synthetic data and has not been recalibrated for real inputs.', '', 'info') + '<div style="height:.6rem"></div>' : ''}${note('<b>These values come from a demonstration model.</b> No live satellite, radar or gauge feed is connected in this build. The adapter interfaces for INSAT-3DR, IMD DWR, AWS gauges and GPM IMERG exist in the data layer and are documented in <span class="mono">docs/ARCHITECTURE.md</span>, but they are not wired to a live endpoint here.', 'warn', 'warn')}
         </div>
       </div>`;
     },
@@ -305,11 +307,11 @@
           ? on.map(l => `<div><i style="background:${l.colour}"></i>${U.esc(l.label)}</div>`).join('') +
             `<div style="margin-top:.35rem;border-top:1px solid var(--line);padding-top:.3rem">Opacity tracks score</div>`
           : '<div>No layers selected</div>';
-        hud.textContent = `z${m.getZoom()} · ${m.kind === 'leaflet' ? 'OSM tiles' : 'offline grid'}`;
+        hud.textContent = `z${m.getZoom()} · ${m.kind === 'leaflet' ? 'OpenStreetMap tiles' : 'offline grid'}`;
       }
 
       redraw();
-      m.onMove(() => { hud.textContent = `z${m.getZoom()} · ${m.kind === 'leaflet' ? 'OSM tiles' : 'offline grid'}`; });
+      m.onMove(() => { hud.textContent = `z${m.getZoom()} · ${m.kind === 'leaflet' ? 'OpenStreetMap tiles' : 'offline grid'}`; });
       m.onClick((lat, lon) => {
         const a = GA.assess(lat, lon, 0, S.scenario ? { scenario: S.scenario } : {});
         document.getElementById('cellInfo').innerHTML = `
@@ -691,10 +693,16 @@
         const to = await resolve(toQ, null);
         if (!from || !to) { st.textContent = 'Could not resolve one of those places. Try a coordinate pair like 22.57, 88.36.'; return; }
         if (GA.haversine(from, to) > 900) { st.textContent = 'That corridor is longer than 900 km — the nowcast window does not cover a journey that long.'; return; }
-        St.buildRoutes(from, to);
-        S.routePick = 0;
-        st.textContent = '';
-        global.GAApp.render();
+        st.textContent = 'Loading original road routes…';
+        try {
+          await St.buildRoutes(from, to);
+          S.routePick = 0;
+          st.textContent = '';
+          global.GAApp.render();
+        } catch (err) {
+          st.textContent = 'Could not load road routes. Check your connection and try again.';
+          console.error('Road routing failed:', err);
+        }
       });
     }
   };
@@ -856,7 +864,7 @@
         const out = root.querySelector(`[data-out="${k}"]`);
         out.textContent = (e.target.value > 0 ? '+' : '') + e.target.value + s.unit;
       });
-      root.addEventListener('click', e => {
+      root.addEventListener('click', async e => {
         const p = e.target.closest('[data-preset]');
         if (p) {
           const pr = PRESETS.find(x => x.id === p.dataset.preset);
@@ -985,7 +993,7 @@
         fr.onload = () => photo = fr.result;
         fr.readAsDataURL(f);
       });
-      root.addEventListener('click', e => {
+      root.addEventListener('click', async e => {
         if (e.target.closest('[data-act="use-gps"]')) {
           const msg = document.getElementById('repMsg');
           if (!navigator.geolocation) { msg.textContent = 'This browser does not expose a location API.'; return; }
@@ -999,7 +1007,7 @@
         const msg = document.getElementById('repMsg');
         const c = GA.parseCoords(document.getElementById('repLoc').value);
         if (!c) { msg.textContent = 'Location needs to be a coordinate pair, for example 22.5726, 88.3639.'; return; }
-        St.addReport({
+        await St.addReport({
           type, description: document.getElementById('repDesc').value.trim(),
           lat: c.lat, lon: c.lon, placeName: S.location.name, photo
         });
@@ -1387,56 +1395,63 @@
       // Log in form submission
       const loginForm = root.querySelector('#userLoginForm');
       if (loginForm) {
-        loginForm.addEventListener('submit', e => {
+        loginForm.addEventListener('submit', async e => {
           e.preventDefault();
           const identifier = root.querySelector('#loginIdentifier').value.trim();
-          if (!identifier) return;
-          const namePart = identifier.includes('@') ? identifier.split('@')[0] : 'User';
-          const capitalized = namePart.charAt(0).toUpperCase() + namePart.slice(1);
-          const initials = capitalized.substring(0, 2).toUpperCase() || 'US';
-          St.setUser({
-            id: 'user_' + Date.now(),
-            name: capitalized,
-            email: identifier.includes('@') ? identifier : identifier + '@community.local',
-            role: 'Community Member',
-            neighborhood: S.location ? S.location.name : 'Local Resident',
-            initials: initials,
-            color: '#0070F2'
-          });
-          GAApp.toast(`Welcome back, ${capitalized}!`);
-          location.hash = '#/dashboard';
+          const password = root.querySelector('#loginPassword').value;
+          if (!identifier || !password) return;
+          try {
+            const response = await fetch('/api/auth/login', {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ contact: identifier, password })
+            });
+            const result = await response.json();
+            if (!response.ok) throw new Error(result.error || 'Sign in failed');
+            const initials = result.user.name.split(' ').map(x => x[0]).join('').slice(0, 2).toUpperCase();
+            St.setUser({ ...result.user, initials, color: '#0070F2' });
+            GAApp.toast(`Welcome back, ${result.user.name}!`);
+            location.hash = '#/dashboard';
+          } catch (error) {
+            GAApp.toast(error.message || 'Sign in failed.');
+          }
         });
       }
 
       // Register form submission
       const regForm = root.querySelector('#userRegisterForm');
       if (regForm) {
-        regForm.addEventListener('submit', e => {
+        regForm.addEventListener('submit', async e => {
           e.preventDefault();
           const name = root.querySelector('#regName').value.trim();
           const contact = root.querySelector('#regContact').value.trim();
           const neighborhood = root.querySelector('#regNeighborhood').value.trim() || 'Local Ward';
           const role = root.querySelector('#regRole').value;
-          if (!name) return;
-          const initials = name.split(' ').map(w => w[0]).join('').substring(0, 2).toUpperCase() || 'US';
-          St.setUser({
-            id: 'reg_' + Date.now(),
-            name: name,
-            email: contact.includes('@') ? contact : contact + '@community.local',
-            role: role,
-            neighborhood: neighborhood,
-            initials: initials,
-            color: '#107E3E'
-          });
-          GAApp.toast(`Account created! Welcome to the safety network, ${name}.`);
-          location.hash = '#/dashboard';
+          const password = root.querySelector('#regPassword').value;
+          if (!name || !contact || password.length < 8) {
+            GAApp.toast('Use a contact and a password with at least 8 characters.');
+            return;
+          }
+          try {
+            const response = await fetch('/api/auth/register', {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ name, contact, neighborhood, role, password })
+            });
+            const result = await response.json();
+            if (!response.ok) throw new Error(result.error || 'Account creation failed');
+            const initials = name.split(' ').map(w => w[0]).join('').substring(0, 2).toUpperCase() || 'US';
+            St.setUser({ ...result.user, initials, color: '#107E3E' });
+            GAApp.toast(`Account created! Welcome to the safety network, ${name}.`);
+            location.hash = '#/dashboard';
+          } catch (error) {
+            GAApp.toast(error.message || 'Account creation failed.');
+          }
         });
       }
 
       const forgotLink = root.querySelector('#forgotPassLink');
       if (forgotLink) {
         forgotLink.addEventListener('click', () => {
-          GAApp.toast('Demo mode: enter any username and password to sign in immediately.');
+          GAApp.toast('Contact the administrator to recover your account. Passwords are never shown.');
         });
       }
 
@@ -1459,5 +1474,5 @@
     }
   };
 
-  global.GAViews = { dashboard, riskmap, prediction, impact, routes, whatif, reports, alerts, explain, about, signin, killMaps, LAYER_DEFS };
+  global.GAViews = { dashboard, riskmap, prediction, impact, routes, whatif, reports, alerts, explain, about, signin, killMaps, rethemeMaps, LAYER_DEFS };
 })(window);

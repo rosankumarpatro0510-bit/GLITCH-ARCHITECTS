@@ -204,6 +204,19 @@
     // orographic enhancement of moisture convergence and rainfall
     if (t.slope > 10) { conv += t.slope * 0.35; rain *= 1 + t.slope / 55; }
 
+    // live model fields (Open-Meteo adapter). Applied AFTER the synthetic orographic
+    // tweak so real rainfall is not multiplied again, and BEFORE the What-if
+    // scenario so simulations still act on whatever the base state is.
+    const live = (global.GA && global.GA.live) ? global.GA.live.sample(lat, lon, hourOffset) : null;
+    if (live) {
+      if (live.cape != null)     cape  = live.cape;
+      if (live.cin != null)      cin   = live.cin;
+      if (live.rh850 != null)    rh850 = live.rh850;
+      if (live.rainRate != null) rain  = live.rainRate;
+      if (live.soilSat != null)  soil  = live.soilSat;
+      if (live.shear != null)    shear = live.shear;
+    }
+
     // scenario overrides from the What-if simulator
     if (opts.scenario) {
       const s = opts.scenario;
@@ -230,7 +243,8 @@
       rainRate: U.round(U.clamp(rain, 0, 160), 1),
       rh850: Math.round(U.clamp(rh850, 12, 100)),
       soilSat: U.round(soil, 2),
-      terrain: t
+      terrain: t,
+      liveFields: live ? Object.keys(live) : []   // which fields came from a real feed
     };
   }
 
@@ -414,7 +428,7 @@
       { id: 'sat',   name: 'Geostationary IR / WV', src: inIndia ? 'INSAT-3DR (adapter not connected)' : 'Global GEO composite (adapter not connected)', ok: true,  cadence: '15 min' },
       { id: 'radar', name: 'Doppler radar (DWR)',   src: inIndia ? 'IMD DWR network' : 'National radar network', ok: n > 0.35, cadence: '10 min' },
       { id: 'aws',   name: 'Surface stations',      src: 'AWS / ARG rain gauges',    ok: n > 0.22, cadence: '15 min' },
-      { id: 'nwp',   name: 'NWP fields',            src: 'GFS 0.25° / WRF nest',     ok: true,  cadence: '6 h' },
+      { id: 'nwp',   name: 'NWP fields',            src: (global.GA && global.GA.live && global.GA.live.hasData(lat, lon)) ? 'Open-Meteo model output (live, ~25 km)' : 'Open-Meteo (not reachable: synthetic fallback)', ok: !!(global.GA && global.GA.live && global.GA.live.hasData(lat, lon)), cadence: '1 h' },
       { id: 'dem',   name: 'Terrain & drainage',    src: 'SRTM 30 m derived',        ok: true,  cadence: 'static' },
       { id: 'osm',   name: 'Infrastructure',        src: 'OpenStreetMap extract',    ok: n > 0.15, cadence: 'weekly' }
     ];

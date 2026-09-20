@@ -90,15 +90,15 @@ The Explainability view renders `contribs` generically. It does not know or care
 
 ## Routing
 
-`state.buildRoutes(from, to)` generates three geometric corridors and scores each at 26 sample points. To use real roads, replace corridor generation with an OSRM or GraphHopper `alternatives=true` query; keep the scorer unchanged:
+`state.buildRoutes(from, to)` requests up to three real road alternatives from the public OSRM routing service and scores every returned road-geometry point against the same risk field:
 
 ```js
 const r = await fetch(`${OSRM}/route/v1/driving/${from.lon},${from.lat};${to.lon},${to.lat}?alternatives=3&geometries=geojson`);
-const corridors = (await r.json()).routes.map(x => decodePolyline(x.geometry));
-// then score each corridor exactly as now
+const corridors = (await r.json()).routes.map(x => x.geometry.coordinates);
+// convert [lon, lat] points, then score each road corridor exactly as now
 ```
 
-Sample density should scale with corridor length rather than staying fixed at 26.
+The map draws the returned road geometries, while the route cards rank them by mean and peak modelled exposure. A lower-exposure route is still not a guarantee that the road is safe or open.
 
 ## Exposure
 

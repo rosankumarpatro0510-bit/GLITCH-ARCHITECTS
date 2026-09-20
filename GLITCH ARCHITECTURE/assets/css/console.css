@@ -1079,6 +1079,7 @@ body.is-console {
   box-shadow: 0 4px 14px rgba(0, 112, 242, 0.35);
   margin-top: .4rem;
 }
+.signin-btn-primary svg { width: 18px; height: 18px; flex: none; }
 .signin-btn-primary:hover {
   background: var(--sap-brand-hover);
   transform: translateY(-1px);

@@ -258,7 +258,7 @@
     verified: { label: 'Corroborated', colour: 'var(--sev-low)', note: 'Matches at least two independent reports nearby, or a moderator confirmed it. Still a citizen observation, not an official measurement.' }
   };
 
-  function addReport(r) {
+  async function addReport(r) {
     const rec = {
       id: U.uid(),
       type: r.type,
@@ -288,6 +288,16 @@
     }
     S.reports.unshift(rec);
     if (S.reports.length > 200) S.reports.length = 200;
+    try {
+      const response = await fetch('/api/reports', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...rec, reporter: S.user ? { id: S.user.id, name: S.user.name, email: S.user.email } : null })
+      });
+      if (!response.ok) throw new Error('Report could not be sent to rescue coordination');
+    } catch (error) {
+      console.warn('Remote report submission failed; keeping local copy.', error);
+      rec.syncError = true;
+    }
     persist();
     emit('reports');
     return rec;
@@ -313,31 +323,22 @@
   }
 
   /* -------------------------------------------------------- route builder */
-  // Candidate corridors are generated geometrically and scored against the
-  // risk field. With a routing engine connected (OSRM/GraphHopper), the same
-  // scorer runs over real road geometry — see docs/ARCHITECTURE.md.
-  function buildRoutes(from, to) {
-    const variants = [
-      { name: 'Direct corridor', offset: 0, colour: '#6FA8DC', detour: 1.0 },
-      { name: 'Northern alternative', offset: 0.42, colour: '#3FA66A', detour: 1.14 },
-      { name: 'Southern alternative', offset: -0.42, colour: '#E0A33E', detour: 1.19 }
-    ];
+  // Fetch real road geometry, then score the sampled road points against the
+  // same risk field used by the rest of the application.
+  async function buildRoutes(from, to) {
+    const endpoint = `https://router.project-osrm.org/route/v1/driving/${from.lon},${from.lat};${to.lon},${to.lat}?alternatives=true&overview=full&geometries=geojson&steps=false`;
+    const response = await fetch(endpoint, { headers: { Accept: 'application/json' } });
+    if (!response.ok) throw new Error(`Routing service returned ${response.status}`);
+    const payload = await response.json();
+    if (payload.code !== 'Ok' || !payload.routes || !payload.routes.length) {
+      throw new Error('No road route was found between these places');
+    }
+
+    const colours = ['#6FA8DC', '#3FA66A', '#E0A33E'];
+    const names = ['Road route', 'Alternative road route', 'Second road alternative'];
     const opts = S.scenario ? { scenario: S.scenario } : {};
-    const span = GA.haversine(from, to);
-    const N = 26;
-    const routes = variants.map(v => {
-      const pts = [];
-      for (let i = 0; i <= N; i++) {
-        const t = i / N;
-        const bow = Math.sin(t * Math.PI) * v.offset * (span / 111) * 0.55;
-        const dx = to.lon - from.lon, dy = to.lat - from.lat;
-        const len = Math.hypot(dx, dy) || 1;
-        const nx = -dy / len, ny = dx / len;
-        pts.push({
-          lat: from.lat + dy * t + ny * bow,
-          lon: from.lon + dx * t + nx * bow
-        });
-      }
+    const routes = payload.routes.slice(0, 3).map((route, routeIndex) => {
+      const pts = route.geometry.coordinates.map(([lon, lat]) => ({ lat, lon }));
       let sum = 0, peak = 0, high = 0;
       const segs = [];
       pts.forEach((p, i) => {
@@ -351,9 +352,10 @@
       let dist = 0;
       for (let i = 1; i < pts.length; i++) dist += GA.haversine(pts[i - 1], pts[i]);
       return {
-        name: v.name, colour: v.colour, points: pts, segments: segs,
-        distanceKm: U.round(dist, 1),
-        minutes: Math.round((dist / 34) * 60 * (1 + mean / 260)),
+        name: names[routeIndex] || `Road alternative ${routeIndex + 1}`,
+        colour: colours[routeIndex] || '#B4C6D2', points: pts, segments: segs,
+        distanceKm: U.round(route.distance / 1000, 1),
+        minutes: Math.max(1, Math.round(route.duration / 60)),
         exposure: U.round(mean, 1),
         peak: U.round(peak, 1),
         highShare: U.round(high / pts.length, 3),
