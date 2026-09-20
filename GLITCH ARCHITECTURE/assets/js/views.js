@@ -864,7 +864,7 @@
         const out = root.querySelector(`[data-out="${k}"]`);
         out.textContent = (e.target.value > 0 ? '+' : '') + e.target.value + s.unit;
       });
-      root.addEventListener('click', e => {
+      root.addEventListener('click', async e => {
         const p = e.target.closest('[data-preset]');
         if (p) {
           const pr = PRESETS.find(x => x.id === p.dataset.preset);
@@ -993,7 +993,7 @@
         fr.onload = () => photo = fr.result;
         fr.readAsDataURL(f);
       });
-      root.addEventListener('click', e => {
+      root.addEventListener('click', async e => {
         if (e.target.closest('[data-act="use-gps"]')) {
           const msg = document.getElementById('repMsg');
           if (!navigator.geolocation) { msg.textContent = 'This browser does not expose a location API.'; return; }
@@ -1007,7 +1007,7 @@
         const msg = document.getElementById('repMsg');
         const c = GA.parseCoords(document.getElementById('repLoc').value);
         if (!c) { msg.textContent = 'Location needs to be a coordinate pair, for example 22.5726, 88.3639.'; return; }
-        St.addReport({
+        await St.addReport({
           type, description: document.getElementById('repDesc').value.trim(),
           lat: c.lat, lon: c.lon, placeName: S.location.name, photo
         });

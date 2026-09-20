@@ -21,6 +21,7 @@ app.use(express.json());
 
 const dataDir = path.join(__dirname, "data");
 const usersFile = path.join(dataDir, "users.json");
+const reportsFile = path.join(dataDir, "reports.json");
 
 function readUsers() {
   try { return JSON.parse(fs.readFileSync(usersFile, "utf8")); } catch (error) { return []; }
@@ -29,6 +30,15 @@ function readUsers() {
 function writeUsers(users) {
   fs.mkdirSync(dataDir, { recursive: true });
   fs.writeFileSync(usersFile, JSON.stringify(users, null, 2));
+}
+
+function readReports() {
+  try { return JSON.parse(fs.readFileSync(reportsFile, "utf8")); } catch (error) { return []; }
+}
+
+function writeReports(reports) {
+  fs.mkdirSync(dataDir, { recursive: true });
+  fs.writeFileSync(reportsFile, JSON.stringify(reports, null, 2));
 }
 
 function normalizeContact(value) { return String(value || "").trim().toLowerCase(); }
@@ -141,6 +151,43 @@ app.post("/api/admin/users/:id/reset-password", (req, res) => {
   user.passwordHash = credentials.hash;
   writeUsers(users);
   res.json({ success: true, user: publicUser(user) });
+});
+
+app.post("/api/reports", (req, res) => {
+  const { type, description, lat, lon, placeName, photo, reporter } = req.body || {};
+  if (!type || !Number.isFinite(Number(lat)) || !Number.isFinite(Number(lon))) {
+    return res.status(400).json({ success: false, error: "Report type and valid coordinates are required" });
+  }
+  const report = {
+    id: `report_${crypto.randomUUID()}`, type: String(type),
+    description: String(description || "").slice(0, 2000),
+    lat: Number(lat), lon: Number(lon), placeName: String(placeName || ""),
+    photo: typeof photo === "string" && photo.length < 5_000_000 ? photo : null,
+    reporter: reporter ? { id: reporter.id, name: reporter.name, email: reporter.email } : null,
+    status: "unverified", createdAt: new Date().toISOString()
+  };
+  const reports = readReports();
+  reports.unshift(report);
+  writeReports(reports.slice(0, 1000));
+  res.status(201).json({ success: true, report });
+});
+
+app.get("/api/admin/reports", (req, res) => {
+  if (!adminAuthorized(req)) return res.status(401).json({ success: false, error: "Admin authorization required" });
+  res.json({ success: true, reports: readReports() });
+});
+
+app.patch("/api/admin/reports/:id", (req, res) => {
+  if (!adminAuthorized(req)) return res.status(401).json({ success: false, error: "Admin authorization required" });
+  const allowed = ["unverified", "review", "verified", "resolved"];
+  if (!allowed.includes(req.body && req.body.status)) return res.status(400).json({ success: false, error: "Invalid report status" });
+  const reports = readReports();
+  const report = reports.find(item => item.id === req.params.id);
+  if (!report) return res.status(404).json({ success: false, error: "Report not found" });
+  report.status = req.body.status;
+  report.updatedAt = new Date().toISOString();
+  writeReports(reports);
+  res.json({ success: true, report });
 });
 
 // Explain Risk endpoint

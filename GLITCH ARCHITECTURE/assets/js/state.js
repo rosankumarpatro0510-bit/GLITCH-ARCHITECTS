@@ -258,7 +258,7 @@
     verified: { label: 'Corroborated', colour: 'var(--sev-low)', note: 'Matches at least two independent reports nearby, or a moderator confirmed it. Still a citizen observation, not an official measurement.' }
   };
 
-  function addReport(r) {
+  async function addReport(r) {
     const rec = {
       id: U.uid(),
       type: r.type,
@@ -288,6 +288,16 @@
     }
     S.reports.unshift(rec);
     if (S.reports.length > 200) S.reports.length = 200;
+    try {
+      const response = await fetch('/api/reports', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...rec, reporter: S.user ? { id: S.user.id, name: S.user.name, email: S.user.email } : null })
+      });
+      if (!response.ok) throw new Error('Report could not be sent to rescue coordination');
+    } catch (error) {
+      console.warn('Remote report submission failed; keeping local copy.', error);
+      rec.syncError = true;
+    }
     persist();
     emit('reports');
     return rec;
