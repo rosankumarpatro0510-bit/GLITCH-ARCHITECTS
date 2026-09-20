@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>User administration | Glitch Architecture</title>
+  <style>
+    body { margin: 0; padding: 2rem; background: #101a23; color: #e9f0f5; font: 15px Arial, sans-serif; }
+    main { max-width: 1100px; margin: auto; }
+    input, button { padding: .65rem .8rem; border: 1px solid #405363; border-radius: 4px; background: #182633; color: inherit; }
+    button { cursor: pointer; background: #0070f2; border-color: #0070f2; }
+    .toolbar { display: flex; gap: .6rem; margin: 1rem 0 1.5rem; }
+    .toolbar input { flex: 1; }
+    .status { color: #a9bac7; min-height: 1.5rem; }
+    table { width: 100%; border-collapse: collapse; background: #182633; }
+    th, td { padding: .7rem; border-bottom: 1px solid #2d4150; text-align: left; }
+    th { color: #79cfe3; }
+    .reset { background: #e9730c; border-color: #e9730c; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>User administration</h1>
+    <p>Account metadata only. Passwords are hashed and cannot be viewed.</p>
+    <div class="toolbar">
+      <input id="token" type="password" placeholder="Admin token" autocomplete="off">
+      <button id="load">Load users</button>
+    </div>
+    <div class="status" id="status"></div>
+    <table>
+      <thead><tr><th>Name</th><th>Contact</th><th>Role</th><th>Neighborhood</th><th>Created</th><th>Recovery</th></tr></thead>
+      <tbody id="users"><tr><td colspan="6">Authenticate to load users.</td></tr></tbody>
+    </table>
+  </main>
+  <script>
+    const token = document.getElementById('token');
+    const status = document.getElementById('status');
+    const users = document.getElementById('users');
+    const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    async function loadUsers() {
+      status.textContent = 'Loading...';
+      const response = await fetch('/api/admin/users', { headers: { 'x-admin-token': token.value } });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Could not load users');
+      users.innerHTML = result.users.length ? result.users.map(user => `<tr>
+        <td>${esc(user.name)}</td><td>${esc(user.email)}</td><td>${esc(user.role)}</td>
+        <td>${esc(user.neighborhood)}</td><td>${esc(new Date(user.createdAt).toLocaleString())}</td>
+        <td><button class="reset" data-id="${esc(user.id)}">Reset password</button></td></tr>`).join('') : '<tr><td colspan="6">No registered users.</td></tr>';
+      status.textContent = `${result.users.length} user(s) loaded.`;
+    }
+    document.getElementById('load').addEventListener('click', () => loadUsers().catch(error => { status.textContent = error.message; }));
+    users.addEventListener('click', async event => {
+      const button = event.target.closest('[data-id]');
+      if (!button) return;
+      const password = prompt('Enter a new password (minimum 8 characters):');
+      if (!password) return;
+      const response = await fetch(`/api/admin/users/${encodeURIComponent(button.dataset.id)}/reset-password`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json', 'x-admin-token': token.value }, body: JSON.stringify({ password })
+      });
+      const result = await response.json();
+      status.textContent = response.ok ? 'Password reset completed.' : (result.error || 'Password reset failed.');
+    });
+  </script>
+</body>
+</html>

@@ -3,6 +3,7 @@ const cors = require("cors");
 const dotenv = require("dotenv");
 const path = require("path");
 const fs = require("fs");
+const crypto = require("crypto");
 const { GoogleGenAI } = require("@google/genai");
 
 // Load .env from Backend directory or parent directory
@@ -17,6 +18,39 @@ const app = express();
 
 app.use(cors());
 app.use(express.json());
+
+const dataDir = path.join(__dirname, "data");
+const usersFile = path.join(dataDir, "users.json");
+
+function readUsers() {
+  try { return JSON.parse(fs.readFileSync(usersFile, "utf8")); } catch (error) { return []; }
+}
+
+function writeUsers(users) {
+  fs.mkdirSync(dataDir, { recursive: true });
+  fs.writeFileSync(usersFile, JSON.stringify(users, null, 2));
+}
+
+function normalizeContact(value) { return String(value || "").trim().toLowerCase(); }
+
+function hashPassword(password, salt = crypto.randomBytes(16).toString("hex")) {
+  return { salt, hash: crypto.scryptSync(password, salt, 64).toString("hex") };
+}
+
+function verifyPassword(password, user) {
+  const candidate = crypto.scryptSync(password, user.passwordSalt, 64);
+  const stored = Buffer.from(user.passwordHash, "hex");
+  return stored.length === candidate.length && crypto.timingSafeEqual(stored, candidate);
+}
+
+function publicUser(user) {
+  return { id: user.id, name: user.name, email: user.email, role: user.role,
+    neighborhood: user.neighborhood, createdAt: user.createdAt, lastLoginAt: user.lastLoginAt || null };
+}
+
+function adminAuthorized(req) {
+  return Boolean(process.env.ADMIN_TOKEN && req.get("x-admin-token") === process.env.ADMIN_TOKEN);
+}
 
 // Serve static frontend files from the parent directory
 const staticDir = path.join(__dirname, "..");
@@ -51,6 +85,62 @@ app.get("/api/health", (req, res) => {
     hasApiKey: !!apiKey,
     model: process.env.GEMINI_MODEL || "gemini-3.6-flash"
   });
+});
+
+// Account registration and login. Passwords are hashed and never returned.
+app.post("/api/auth/register", (req, res) => {
+  const { name, contact, neighborhood, role, password } = req.body || {};
+  const email = normalizeContact(contact);
+  if (!name || !email || !password || password.length < 8) {
+    return res.status(400).json({ success: false, error: "Name, contact, and a password of at least 8 characters are required" });
+  }
+  const users = readUsers();
+  if (users.some(user => user.email === email)) {
+    return res.status(409).json({ success: false, error: "An account with that contact already exists" });
+  }
+  const credentials = hashPassword(password);
+  const user = {
+    id: `user_${crypto.randomUUID()}`, name: String(name).trim(), email,
+    role: role || "Community Member", neighborhood: neighborhood || "Local Resident",
+    passwordSalt: credentials.salt, passwordHash: credentials.hash,
+    createdAt: new Date().toISOString()
+  };
+  users.push(user);
+  writeUsers(users);
+  res.status(201).json({ success: true, user: publicUser(user) });
+});
+
+app.post("/api/auth/login", (req, res) => {
+  const email = normalizeContact(req.body && req.body.contact);
+  const password = String((req.body && req.body.password) || "");
+  const users = readUsers();
+  const user = users.find(item => item.email === email);
+  if (!user || !verifyPassword(password, user)) {
+    return res.status(401).json({ success: false, error: "Invalid contact or password" });
+  }
+  user.lastLoginAt = new Date().toISOString();
+  writeUsers(users);
+  res.json({ success: true, user: publicUser(user) });
+});
+
+// Admin recovery interface. It exposes metadata only, never passwords.
+app.get("/api/admin/users", (req, res) => {
+  if (!adminAuthorized(req)) return res.status(401).json({ success: false, error: "Admin authorization required" });
+  res.json({ success: true, users: readUsers().map(publicUser) });
+});
+
+app.post("/api/admin/users/:id/reset-password", (req, res) => {
+  if (!adminAuthorized(req)) return res.status(401).json({ success: false, error: "Admin authorization required" });
+  const password = String((req.body && req.body.password) || "");
+  if (password.length < 8) return res.status(400).json({ success: false, error: "Password must be at least 8 characters" });
+  const users = readUsers();
+  const user = users.find(item => item.id === req.params.id);
+  if (!user) return res.status(404).json({ success: false, error: "User not found" });
+  const credentials = hashPassword(password);
+  user.passwordSalt = credentials.salt;
+  user.passwordHash = credentials.hash;
+  writeUsers(users);
+  res.json({ success: true, user: publicUser(user) });
 });
 
 // Explain Risk endpoint

@@ -1395,56 +1395,63 @@
       // Log in form submission
       const loginForm = root.querySelector('#userLoginForm');
       if (loginForm) {
-        loginForm.addEventListener('submit', e => {
+        loginForm.addEventListener('submit', async e => {
           e.preventDefault();
           const identifier = root.querySelector('#loginIdentifier').value.trim();
-          if (!identifier) return;
-          const namePart = identifier.includes('@') ? identifier.split('@')[0] : 'User';
-          const capitalized = namePart.charAt(0).toUpperCase() + namePart.slice(1);
-          const initials = capitalized.substring(0, 2).toUpperCase() || 'US';
-          St.setUser({
-            id: 'user_' + Date.now(),
-            name: capitalized,
-            email: identifier.includes('@') ? identifier : identifier + '@community.local',
-            role: 'Community Member',
-            neighborhood: S.location ? S.location.name : 'Local Resident',
-            initials: initials,
-            color: '#0070F2'
-          });
-          GAApp.toast(`Welcome back, ${capitalized}!`);
-          location.hash = '#/dashboard';
+          const password = root.querySelector('#loginPassword').value;
+          if (!identifier || !password) return;
+          try {
+            const response = await fetch('/api/auth/login', {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ contact: identifier, password })
+            });
+            const result = await response.json();
+            if (!response.ok) throw new Error(result.error || 'Sign in failed');
+            const initials = result.user.name.split(' ').map(x => x[0]).join('').slice(0, 2).toUpperCase();
+            St.setUser({ ...result.user, initials, color: '#0070F2' });
+            GAApp.toast(`Welcome back, ${result.user.name}!`);
+            location.hash = '#/dashboard';
+          } catch (error) {
+            GAApp.toast(error.message || 'Sign in failed.');
+          }
         });
       }
 
       // Register form submission
       const regForm = root.querySelector('#userRegisterForm');
       if (regForm) {
-        regForm.addEventListener('submit', e => {
+        regForm.addEventListener('submit', async e => {
           e.preventDefault();
           const name = root.querySelector('#regName').value.trim();
           const contact = root.querySelector('#regContact').value.trim();
           const neighborhood = root.querySelector('#regNeighborhood').value.trim() || 'Local Ward';
           const role = root.querySelector('#regRole').value;
-          if (!name) return;
-          const initials = name.split(' ').map(w => w[0]).join('').substring(0, 2).toUpperCase() || 'US';
-          St.setUser({
-            id: 'reg_' + Date.now(),
-            name: name,
-            email: contact.includes('@') ? contact : contact + '@community.local',
-            role: role,
-            neighborhood: neighborhood,
-            initials: initials,
-            color: '#107E3E'
-          });
-          GAApp.toast(`Account created! Welcome to the safety network, ${name}.`);
-          location.hash = '#/dashboard';
+          const password = root.querySelector('#regPassword').value;
+          if (!name || !contact || password.length < 8) {
+            GAApp.toast('Use a contact and a password with at least 8 characters.');
+            return;
+          }
+          try {
+            const response = await fetch('/api/auth/register', {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ name, contact, neighborhood, role, password })
+            });
+            const result = await response.json();
+            if (!response.ok) throw new Error(result.error || 'Account creation failed');
+            const initials = name.split(' ').map(w => w[0]).join('').substring(0, 2).toUpperCase() || 'US';
+            St.setUser({ ...result.user, initials, color: '#107E3E' });
+            GAApp.toast(`Account created! Welcome to the safety network, ${name}.`);
+            location.hash = '#/dashboard';
+          } catch (error) {
+            GAApp.toast(error.message || 'Account creation failed.');
+          }
         });
       }
 
       const forgotLink = root.querySelector('#forgotPassLink');
       if (forgotLink) {
         forgotLink.addEventListener('click', () => {
-          GAApp.toast('Demo mode: enter any username and password to sign in immediately.');
+          GAApp.toast('Contact the administrator to recover your account. Passwords are never shown.');
         });
       }
 
