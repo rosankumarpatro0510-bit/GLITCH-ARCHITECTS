@@ -693,10 +693,16 @@
         const to = await resolve(toQ, null);
         if (!from || !to) { st.textContent = 'Could not resolve one of those places. Try a coordinate pair like 22.57, 88.36.'; return; }
         if (GA.haversine(from, to) > 900) { st.textContent = 'That corridor is longer than 900 km — the nowcast window does not cover a journey that long.'; return; }
-        St.buildRoutes(from, to);
-        S.routePick = 0;
-        st.textContent = '';
-        global.GAApp.render();
+        st.textContent = 'Loading original road routes…';
+        try {
+          await St.buildRoutes(from, to);
+          S.routePick = 0;
+          st.textContent = '';
+          global.GAApp.render();
+        } catch (err) {
+          st.textContent = 'Could not load road routes. Check your connection and try again.';
+          console.error('Road routing failed:', err);
+        }
       });
     }
   };
